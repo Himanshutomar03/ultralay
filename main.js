@@ -34,14 +34,22 @@ const Hotkeys    = require('./utils/hotkeys');
 const ApiCaller  = require('./utils/api-caller');
 
 // ─── Paths ────────────────────────────────────────────────────────────────────
+// When running as a portable exe (electron-builder sets PORTABLE_EXECUTABLE_DIR),
+// store data next to the exe so the app is truly portable (no AppData footprint).
+const PORTABLE_DIR = process.env.PORTABLE_EXECUTABLE_DIR;
+if (PORTABLE_DIR) {
+  app.setPath('userData', path.join(PORTABLE_DIR, 'UltralayData'));
+}
+
 const APP_DATA       = app.getPath('userData');
 const LOG_DIR        = path.join(APP_DATA, 'logs');
 const SCREENSHOT_DIR = path.join(APP_DATA, 'screenshots');
 const CONFIG_FILE    = path.join(APP_DATA, 'config.json');
 
-[LOG_DIR, SCREENSHOT_DIR, path.join(__dirname, 'assets')].forEach(d =>
-  fs.mkdirSync(d, { recursive: true })
-);
+// Only create writable dirs — never touch __dirname (read-only inside asar)
+[LOG_DIR, SCREENSHOT_DIR].forEach(d => {
+  try { fs.mkdirSync(d, { recursive: true }); } catch (_) {}
+});
 
 // ─── Logger ───────────────────────────────────────────────────────────────────
 const log = new Logger(LOG_DIR);
