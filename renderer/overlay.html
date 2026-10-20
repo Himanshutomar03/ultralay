@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ultralay AI</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:;">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:      rgba(10, 10, 18, 0.97);
+      --bg2:     rgba(16, 16, 26, 0.98);
+      --bg3:     rgba(22, 22, 36, 0.96);
+      --border:  rgba(255,255,255,0.07);
+      --border2: rgba(255,255,255,0.13);
+      --g1: #4285f4; --g2: #34a853; /* Google Gemini brand */
+      --accent-g: linear-gradient(135deg, #4285f4, #34a853);
+      --accent:  #4285f4;
+      --green:   #22d3a0;
+      --red:     #f05c7c;
+      --yellow:  #f0c44c;
+      --text:    rgba(255,255,255,0.92);
+      --text2:   rgba(255,255,255,0.55);
+      --text3:   rgba(255,255,255,0.28);
+      --radius:  12px; --radius-sm: 8px;
+      --tr: 0.15s cubic-bezier(.4,0,.2,1);
+      --shadow: 0 8px 40px rgba(0,0,0,0.6);
+      --font: 'Inter', system-ui, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+    }
+    html, body { width:100%; height:100%; background:transparent; font-family:var(--font); color:var(--text); overflow:hidden; }
+
+    /* ─── App shell ─────────────────────────────────────────────── */
+    #app {
+      display: flex; flex-direction: column; height: 100vh;
+      background: var(--bg);
+      border-radius: var(--radius);
+      border: 1px solid var(--border2);
+      box-shadow: var(--shadow), 0 0 0 1px rgba(255,255,255,0.04);
+      backdrop-filter: blur(40px) saturate(160%);
+      overflow: hidden;
+    }
+
+    /* ─── Titlebar ──────────────────────────────────────────────── */
+    #titlebar {
+      display: flex; align-items: center;
+      padding: 0 12px; height: 40px;
+      background: var(--bg2); border-bottom: 1px solid var(--border);
+      -webkit-app-region: drag; flex-shrink: 0; gap: 8px; user-select: none;
+    }
+    .tb-logo {
+      font-size: 13px; font-weight: 700;
+      background: var(--accent-g);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      letter-spacing: -0.02em;
+    }
+    .tb-key-badge {
+      font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 10px;
+      background: rgba(66,133,244,0.15); border: 1px solid rgba(66,133,244,0.3);
+      color: var(--accent); text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .tb-spacer { flex: 1; }
+    .win-controls { display: flex; gap: 4px; -webkit-app-region: no-drag; }
+    .wc {
+      width: 27px; height: 27px; border: none; border-radius: 7px;
+      background: rgba(255,255,255,0.06); color: var(--text2);
+      cursor: pointer; font-size: 12px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all var(--tr);
+    }
+    .wc:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+    .wc.wc-hide:hover  { background: rgba(240,196,76,0.2);  color: var(--yellow); }
+    .wc.wc-min:hover   { background: rgba(34,211,160,0.15); color: var(--green); }
+    .wc.wc-close:hover { background: rgba(240,92,124,0.2);  color: var(--red); }
+    .wc.active         { background: rgba(66,133,244,0.18); color: var(--accent); }
+
+    /* ─── Stealth mode badge ────────────────────────────────────── */
+    #stealth-badge {
+      position: absolute; top: 6px; left: 10px;
+      display: flex; align-items: center; gap: 5px;
+      padding: 2px 8px; border-radius: 20px; font-size: 9px;
+      font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+      pointer-events: none; z-index: 9999; transition: all 0.2s;
+      -webkit-app-region: no-drag;
+    }
+    #stealth-badge.passthrough  { background:rgba(34,211,160,0.12); border:1px solid rgba(34,211,160,0.3); color:var(--green); }
+    #stealth-badge.interactive  { background:rgba(240,196,76,0.12); border:1px solid rgba(240,196,76,0.3);  color:var(--yellow); }
+    #stealth-badge.locked       { background:rgba(240,92,124,0.12); border:1px solid rgba(240,92,124,0.3);  color:var(--red); }
+    .badge-dot { width:5px; height:5px; border-radius:50%; background:currentColor; }
+
+    /* ─── Model row ─────────────────────────────────────────────── */
+    #model-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 12px; background: var(--bg3);
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    #model-row label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0; }
+    #model-select {
+      flex: 1; background: rgba(0,0,0,0.3); border: 1px solid var(--border2);
+      border-radius: var(--radius-sm); padding: 5px 8px;
+      color: var(--text); font-size: 12px; font-family: var(--font); outline: none; cursor: pointer;
+    }
+    #model-select option { background: #12121e; }
+    #key-indicator {
+      font-size: 10px; color: var(--text3); white-space: nowrap;
+      background: rgba(0,0,0,0.25); border: 1px solid var(--border);
+      border-radius: 6px; padding: 3px 8px; flex-shrink: 0;
+    }
+    #key-indicator.active { color: var(--green); border-color: rgba(34,211,160,0.3); }
+    #key-indicator.warn   { color: var(--yellow); border-color: rgba(240,196,76,0.3); }
+    .btn-icon {
+      width: 28px; height: 28px; border: none; border-radius: var(--radius-sm);
+      background: rgba(255,255,255,0.06); color: var(--text2);
+      cursor: pointer; font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all var(--tr); flex-shrink: 0;
+    }
+    .btn-icon:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+
+    /* ─── Chat area ─────────────────────────────────────────────── */
+    #chat-area {
+      flex: 1; overflow-y: auto; padding: 10px;
+      display: flex; flex-direction: column; gap: 9px; scroll-behavior: smooth;
+    }
+    #chat-area::-webkit-scrollbar { width: 3px; }
+    #chat-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+    .msg { display: flex; flex-direction: column; max-width: 93%; animation: fadeUp .18s ease; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:none} }
+    .msg.user { align-self: flex-end; align-items: flex-end; }
+    .msg.ai   { align-self: flex-start; align-items: flex-start; }
+
+    .msg-meta { font-size: 9px; color: var(--text3); margin-bottom: 3px; display: flex; align-items: center; gap: 6px; }
+    .key-pill {
+      font-size: 9px; font-weight: 600; padding: 1px 5px; border-radius: 3px;
+      background: rgba(66,133,244,0.15); color: var(--accent); border: 1px solid rgba(66,133,244,0.25);
+    }
+    .msg-bubble {
+      padding: 9px 12px; border-radius: var(--radius);
+      font-size: 13px; line-height: 1.65; word-break: break-word; white-space: pre-wrap;
+    }
+    .msg.user .msg-bubble {
+      background: var(--accent-g); color: #fff; border-bottom-right-radius: 4px;
+    }
+    .msg.ai .msg-bubble {
+      background: var(--bg3); border: 1px solid var(--border); color: var(--text); border-bottom-left-radius: 4px;
+    }
+    .msg.ai .msg-bubble code { font-family: var(--mono); font-size: 11px; background: rgba(0,0,0,0.3); padding: 1px 4px; border-radius: 3px; }
+    .msg.ai .msg-bubble pre { background: rgba(0,0,0,0.4); border: 1px solid var(--border2); border-radius: var(--radius-sm); padding: 9px; margin: 7px 0; overflow-x: auto; font-family: var(--mono); font-size: 11px; line-height: 1.5; }
+    .msg.error .msg-bubble { background: rgba(240,92,124,0.1); border: 1px solid rgba(240,92,124,0.25); color: #f8a0b0; }
+    .msg-img { max-width: 180px; max-height: 100px; border-radius: var(--radius-sm); object-fit: cover; margin-bottom: 5px; border: 1px solid var(--border2); }
+
+    /* thinking */
+    .msg.thinking .msg-bubble { background: var(--bg3); border: 1px solid var(--border); padding: 11px 14px; }
+    .thinking-dots { display: flex; gap: 4px; align-items: center; }
+    .thinking-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: bounce 1.2s infinite; }
+    .thinking-dots span:nth-child(2) { animation-delay:.2s } .thinking-dots span:nth-child(3) { animation-delay:.4s }
+    @keyframes bounce { 0%,80%,100%{transform:scale(.8);opacity:.4} 40%{transform:scale(1);opacity:1} }
+
+    /* empty state */
+    #empty-state {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 10px; text-align: center; color: var(--text3); padding: 16px;
+    }
+    .empty-icon { font-size: 28px; opacity: 0.4; }
+    .empty-title { font-size: 13px; font-weight: 600; color: var(--text2); }
+    .empty-sub   { font-size: 11px; line-height: 1.6; }
+    .empty-hk { display: flex; flex-direction: column; gap: 4px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 12px; font-size: 10px; text-align: left; width: 100%; }
+    .hk { display: flex; justify-content: space-between; }
+    .hk-k { font-family: var(--mono); font-size: 9px; background: rgba(255,255,255,0.07); border-radius: 3px; padding: 1px 5px; color: var(--text2); }
+
+    /* ─── Attach bar ────────────────────────────────────────────── */
+    #attach-bar {
+      display: none; align-items: center; gap: 8px; padding: 5px 12px;
+      background: rgba(66,133,244,0.08); border-top: 1px solid rgba(66,133,244,0.2);
+      flex-shrink: 0; font-size: 11px; color: var(--accent);
+    }
+    #attach-bar.visible { display: flex; }
+    #attach-bar img { width: 32px; height: 32px; object-fit: cover; border-radius: 5px; border: 1px solid rgba(66,133,244,0.3); }
+    .attach-name { flex: 1; }
+    .attach-remove { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 13px; border-radius: 3px; padding: 1px 4px; transition: color var(--tr); }
+    .attach-remove:hover { color: var(--red); }
+
+    /* ─── Input row ─────────────────────────────────────────────── */
+    #input-row {
+      display: flex; align-items: flex-end; gap: 7px; padding: 9px 10px;
+      border-top: 1px solid var(--border); background: var(--bg2); flex-shrink: 0;
+    }
+    #msg-input {
+      flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--border2);
+      border-radius: var(--radius); padding: 8px 11px; color: var(--text);
+      font-family: var(--font); font-size: 13px; resize: none; outline: none;
+      max-height: 110px; min-height: 36px; line-height: 1.5; transition: border-color var(--tr);
+    }
+    #msg-input:focus { border-color: var(--accent); }
+    #msg-input::placeholder { color: var(--text3); }
+    #btn-send {
+      width: 34px; height: 34px; border: none; border-radius: var(--radius-sm);
+      background: var(--accent-g); color: #fff; cursor: pointer; font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all var(--tr); flex-shrink: 0;
+    }
+    #btn-send:hover { opacity: .88; transform: scale(1.04); }
+    #btn-send:disabled { opacity: .3; cursor: not-allowed; transform: none; }
+    #btn-send.loading { animation: pulse .8s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ─── Status bar ────────────────────────────────────────────── */
+    #status-bar {
+      display: flex; align-items: center; gap: 7px; padding: 0 11px; height: 20px;
+      background: var(--bg2); border-top: 1px solid var(--border);
+      font-size: 9px; color: var(--text3); flex-shrink: 0;
+    }
+    .sdot { width:4px; height:4px; border-radius:50%; background:var(--green); animation:spulse 2s infinite; }
+    @keyframes spulse { 0%,100%{opacity:1}50%{opacity:.25} }
+    #status-text { flex: 1; }
+
+    /* ─── Settings panel ────────────────────────────────────────── */
+    #settings-panel {
+      position: absolute; inset: 40px 0 0 0;
+      background: var(--bg2); border-top: 1px solid var(--border2);
+      z-index: 100; display: flex; flex-direction: column;
+      overflow-y: auto; transform: translateX(100%);
+      transition: transform 0.22s cubic-bezier(.4,0,.2,1);
+    }
+    #settings-panel.open { transform: translateX(0); }
+    #settings-panel::-webkit-scrollbar { width: 3px; }
+    #settings-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+
+    .sp-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; flex-shrink: 0; }
+    .sp-close { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 15px; transition: color var(--tr); }
+    .sp-close:hover { color: var(--red); }
+    .sp-section { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 9px; }
+    .sp-label { font-size: 9px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+    .sp-row { display: flex; align-items: center; justify-content: space-between; }
+    .sp-row-label { font-size: 12px; }
+    .sp-sub { font-size: 10px; color: var(--text3); }
+    .sp-input {
+      width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border2);
+      border-radius: var(--radius-sm); padding: 6px 9px; color: var(--text);
+      font-family: var(--mono); font-size: 11px; outline: none; transition: border-color var(--tr);
+    }
+    .sp-input:focus { border-color: var(--accent); }
+    .sp-input::placeholder { color: var(--text3); font-family: var(--font); }
+
+    /* Key list */
+    #key-list { display: flex; flex-direction: column; gap: 5px; }
+    .key-item {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(0,0,0,0.2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 6px 9px;
+      font-family: var(--mono); font-size: 11px; color: var(--text2);
+      transition: border-color var(--tr);
+    }
+    .key-item.active-key { border-color: rgba(34,211,160,0.4); color: var(--green); }
+    .key-item.exhausted-key { border-color: rgba(240,92,124,0.3); color: rgba(240,92,124,0.6); text-decoration: line-through; }
+    .key-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .key-status { font-size: 9px; padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
+    .key-item.active-key .key-status { background: rgba(34,211,160,0.15); color: var(--green); }
+    .key-item.exhausted-key .key-status { background: rgba(240,92,124,0.1); color: var(--red); }
+    .key-del { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 13px; transition: color var(--tr); flex-shrink: 0; }
+    .key-del:hover { color: var(--red); }
+
+    .add-key-row { display: flex; gap: 6px; }
+    .add-key-row .sp-input { flex: 1; }
+
+    /* Toggle */
+    .toggle { position: relative; width: 36px; height: 20px; cursor: pointer; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: rgba(255,255,255,0.1); border-radius: 10px; transition: background var(--tr); }
+    .toggle-slider::before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: transform var(--tr); }
+    .toggle input:checked + .toggle-slider { background: var(--accent); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+
+    /* Range */
+    .range-row { display: flex; align-items: center; gap: 7px; }
+    input[type=range] { flex: 1; appearance: none; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.1); outline: none; cursor: pointer; }
+    input[type=range]::-webkit-slider-thumb { appearance: none; width: 13px; height: 13px; border-radius: 50%; background: var(--accent); cursor: pointer; }
+
+    /* Buttons */
+    .sp-btn { width: 100%; padding: 8px; border: none; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer; transition: all var(--tr); }
+    .sp-btn-primary   { background: var(--accent-g); color: #fff; }
+    .sp-btn-primary:hover { opacity: .85; transform: translateY(-1px); }
+    .sp-btn-sm {
+      padding: 5px 10px; border: none; border-radius: var(--radius-sm);
+      font-size: 11px; font-weight: 600; cursor: pointer; transition: all var(--tr);
+      background: rgba(66,133,244,0.15); color: var(--accent); border: 1px solid rgba(66,133,244,0.25);
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .sp-btn-sm:hover { background: rgba(66,133,244,0.25); }
+
+    /* Toast */
+    #toast {
+      position: absolute; bottom: 68px; left: 50%;
+      transform: translateX(-50%) translateY(6px);
+      background: var(--bg3); border: 1px solid var(--border2); border-radius: 18px;
+      padding: 6px 14px; font-size: 11px; color: var(--text);
+      pointer-events: none; opacity: 0; z-index: 200; white-space: nowrap;
+      transition: all 0.18s ease; backdrop-filter: blur(16px);
+      max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Stealth badge -->
+  <div id="stealth-badge" class="passthrough">
+    <div class="badge-dot"></div>
+    <span id="badge-text">PASSTHROUGH</span>
+  </div>
+
+  <!-- Titlebar -->
+  <div id="titlebar">
+    <span class="tb-logo">✦ Ultralay</span>
+    <span class="tb-key-badge" id="tb-provider">Gemini</span>
+    <div class="tb-spacer"></div>
+    <div class="win-controls">
+      <button class="wc" id="btn-pin"   title="Always on top (Ctrl+Alt+L)">📌</button>
+      <button class="wc wc-hide" id="btn-hide"  title="Hide (Alt+\`)">👁</button>
+      <button class="wc wc-min"  id="btn-min"   title="Minimize">─</button>
+      <button class="wc wc-close" id="btn-settings-open" title="Settings">⚙</button>
+      <button class="wc wc-close" id="btn-close" title="Quit">✕</button>
+    </div>
+  </div>
+
+  <!-- Model + key indicator row -->
+  <div id="model-row">
+    <label for="model-select">Model</label>
+    <select id="model-select">
+      <option value="gemini-3.8-flash">Gemini 3.8 Flash ★</option>
+      <option value="gemini-2.5-flash-preview-05-20">Gemini 2.5 Flash Preview</option>
+      <option value="gemini-2.5-pro-preview-05-06">Gemini 2.5 Pro Preview</option>
+      <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+      <option value="gemini-1.5-flash-8b">Gemini 1.5 Flash 8B</option>
+      <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+    </select>
+    <div id="key-indicator">No keys</div>
+    <button class="btn-icon" id="btn-clear" title="Clear chat">🗑</button>
+    <button class="btn-icon" id="btn-screenshot-btn" title="Screenshot (Ctrl+Alt+S)">📸</button>
+  </div>
+
+  <!-- Chat area -->
+  <div id="chat-area">
+    <div id="empty-state">
+      <div class="empty-icon">✦</div>
+      <div class="empty-title">Ultralay · Gemini AI</div>
+      <div class="empty-sub">Click 📸 or press <strong>Ctrl+Alt+S</strong> to capture your screen, then ask Gemini anything.</div>
+      <div class="empty-hk">
+        <div class="hk"><span>Screenshot</span><span class="hk-k">Ctrl+Alt+S</span></div>
+        <div class="hk"><span>Hide / Show</span><span class="hk-k">Alt+`</span></div>
+        <div class="hk"><span>Lock interactive</span><span class="hk-k">Ctrl+Alt+L</span></div>
+        <div class="hk"><span>Settings</span><span class="hk-k">Ctrl+Shift+P</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Attach bar -->
+  <div id="attach-bar">
+    <img id="attach-preview" src="" alt="screenshot" />
+    <span class="attach-name" id="attach-name">screenshot.png</span>
+    <button class="attach-remove" id="btn-remove-attach">✕</button>
+  </div>
+
+  <!-- Input row -->
+  <div id="input-row">
+    <textarea id="msg-input" placeholder="Ask Gemini anything… (Enter to send, Shift+Enter for newline)" rows="1"></textarea>
+    <button id="btn-send" title="Send">➤</button>
+  </div>
+
+  <!-- Status bar -->
+  <div id="status-bar">
+    <div class="sdot" id="sdot"></div>
+    <span id="status-text">Ready</span>
+    <span style="margin-left:auto;cursor:pointer;font-size:11px" id="btn-open-ss" title="Open screenshots">📂</span>
+  </div>
+
+  <!-- Settings panel -->
+  <div id="settings-panel">
+    <div class="sp-header">
+      ⚙ Settings
+      <button class="sp-close" id="sp-close">✕</button>
+    </div>
+
+    <!-- Gemini API Keys -->
+    <div class="sp-section">
+      <div class="sp-label">Gemini API Keys (auto-rotates on quota)</div>
+      <div id="key-list"></div>
+      <div class="add-key-row">
+        <input class="sp-input" type="password" id="new-key-input" placeholder="AIza... paste new key" autocomplete="off" />
+        <button class="sp-btn-sm" id="btn-add-key">+ Add</button>
+      </div>
+      <div class="sp-sub">Keys rotate automatically when one hits quota. Active key shown in green.</div>
+    </div>
+
+    <!-- Screenshare protection -->
+    <div class="sp-section">
+      <div class="sp-label">Stealth</div>
+      <div class="sp-row">
+        <div>
+          <div class="sp-row-label">🎥 Hidden from screen share</div>
+          <div class="sp-sub">Uses WDA_EXCLUDEFROMCAPTURE — window invisible to OBS, Meet, Teams, SEB</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="pref-screenshare-hide" />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="sp-row">
+        <div>
+          <div class="sp-row-label">📌 Always on top</div>
+          <div class="sp-sub">Stay above all windows including SEB</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="pref-pin" checked />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="sp-row">
+        <span class="sp-row-label">Opacity</span>
+        <div class="range-row">
+          <input type="range" id="pref-opacity" min="30" max="100" value="97" />
+          <span id="opacity-val" style="font-size:10px;color:var(--text2);width:34px;">97%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="sp-section">
+      <div class="sp-label">Actions</div>
+      <div style="display:flex;gap:7px">
+        <button class="sp-btn-sm" id="btn-sp-ss" style="flex:1">📂 Screenshots</button>
+        <button class="sp-btn-sm" id="btn-sp-logs" style="flex:1">📋 Logs</button>
+      </div>
+      <button class="sp-btn sp-btn-primary" id="btn-save-settings">💾 Save Settings</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+</div>
+
+<script>
+'use strict';
+const api = window.ultralay;
+const $   = id => document.getElementById(id);
+
+// ── State ────────────────────────────────────────────────────────────────────
+let history       = [];
+let pendingImages = [];
+let isLoading     = false;
+let config        = {};
+let activeKeyIndex = 0;   // which Gemini key is currently in use
+
+const MODELS = [
+  { id: 'gemini-3.8-flash',               label: 'Gemini 3.8 Flash ★' },
+  { id: 'gemini-2.5-flash-preview-05-20', label: 'Gemini 2.5 Flash Preview' },
+  { id: 'gemini-2.5-pro-preview-05-06',   label: 'Gemini 2.5 Pro Preview' },
+  { id: 'gemini-1.5-flash',               label: 'Gemini 1.5 Flash' },
+  { id: 'gemini-1.5-flash-8b',            label: 'Gemini 1.5 Flash 8B' },
+  { id: 'gemini-1.5-pro',                 label: 'Gemini 1.5 Pro' },
+];
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+async function init() {
+  config = await api.getConfig();
+  applyConfig();
+}
+init();
+
+function applyConfig() {
+  $('pref-pin').checked             = config.alwaysOnTop !== false;
+  $('pref-screenshare-hide').checked = config.screenshareHide === true;
+  $('pref-opacity').value           = config.opacity ?? 97;
+  $('opacity-val').textContent      = (config.opacity ?? 97) + '%';
+  document.getElementById('app').style.opacity = (config.opacity ?? 97) / 100;
+  $('btn-pin').classList.toggle('active', config.alwaysOnTop !== false);
+  renderKeyList();
+  updateKeyIndicator();
+}
+
+// ── Key management ────────────────────────────────────────────────────────────
+function getKeys() { return config.geminiKeys || []; }
+
+function renderKeyList() {
+  const keys      = getKeys();
+  const exhausted = config.exhaustedKeys || [];
+  const list      = $('key-list');
+  list.innerHTML  = '';
+
+  if (keys.length === 0) {
+    list.innerHTML = '<div style="font-size:11px;color:var(--text3);text-align:center;padding:6px 0">No API keys added yet</div>';
+    return;
+  }
+
+  keys.forEach((key, i) => {
+    const isActive = i === activeKeyIndex;
+    const isDead   = exhausted.includes(key);
+    const div = document.createElement('div');
+    div.className = 'key-item' + (isActive && !isDead ? ' active-key' : '') + (isDead ? ' exhausted-key' : '');
+    div.innerHTML = `
+      <span class="key-label" title="${key}">Key ${i+1}: ${key.slice(0,8)}…${key.slice(-4)}</span>
+      <span class="key-status">${isDead ? 'EXHAUSTED' : isActive ? 'ACTIVE' : 'STANDBY'}</span>
+      <button class="key-del" data-i="${i}" title="Remove">✕</button>
+    `;
+    div.querySelector('.key-del').addEventListener('click', () => removeKey(i));
+    list.appendChild(div);
+  });
+}
+
+function updateKeyIndicator() {
+  const keys = getKeys();
+  const ind  = $('key-indicator');
+  if (keys.length === 0) {
+    ind.textContent = 'No keys'; ind.className = '';
+    return;
+  }
+  const exhausted = (config.exhaustedKeys || []).length;
+  const live = keys.length - exhausted;
+  ind.textContent = `Key ${activeKeyIndex + 1}/${keys.length} · ${live} live`;
+  ind.className = exhausted > 0 ? 'warn' : 'active';
+}
+
+function addKey(key) {
+  key = key.trim();
+  if (!key || key.length < 10) { toast('⚠️ Invalid API key'); return; }
+  if ((config.geminiKeys || []).includes(key)) { toast('Key already added'); return; }
+  config.geminiKeys = [...(config.geminiKeys || []), key];
+  renderKeyList();
+  updateKeyIndicator();
+  toast(`✅ Key ${config.geminiKeys.length} added`);
+}
+
+function removeKey(i) {
+  const keys = [...(config.geminiKeys || [])];
+  keys.splice(i, 1);
+  config.geminiKeys = keys;
+  if (activeKeyIndex >= keys.length) activeKeyIndex = Math.max(0, keys.length - 1);
+  renderKeyList();
+  updateKeyIndicator();
+}
+
+$('btn-add-key').addEventListener('click', () => {
+  addKey($('new-key-input').value);
+  $('new-key-input').value = '';
+});
+$('new-key-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { addKey($('new-key-input').value); $('new-key-input').value = ''; }
+});
+
+// ── Send message ──────────────────────────────────────────────────────────────
+async function sendMessage() {
+  if (isLoading) return;
+  const input = $('msg-input');
+  const text  = input.value.trim();
+  if (!text && pendingImages.length === 0) return;
+
+  const keys = getKeys();
+  if (keys.length === 0) {
+    toast('⚠️ Add a Gemini API key in Settings first');
+    openSettings(); return;
+  }
+
+  $('empty-state')?.remove();
+
+  history.push({ role: 'user', content: text || '(screenshot attached)' });
+  renderMessage({ role: 'user', content: text, images: pendingImages });
+
+  input.value = ''; input.style.height = '';
+  const imgs = [...pendingImages];
+  pendingImages = [];
+  updateAttachBar();
+
+  const thinkId = 'think-' + Date.now();
+  renderThinking(thinkId);
+  setLoading(true);
+  setStatus('Calling Gemini…', true);
+
+  // Pass all keys + current index so main can rotate
+  const model = $('model-select').value;
+  const result = await api.apiChat({
+    provider:       'gemini',
+    model,
+    messages:       history,
+    geminiKeys:     keys,
+    activeKeyIndex,
+    images:         imgs.map(i => i.b64),
+  });
+
+  removeThinking(thinkId);
+
+  if (result.ok) {
+    // Main process tells us which key succeeded (may have rotated)
+    if (result.activeKeyIndex !== undefined && result.activeKeyIndex !== activeKeyIndex) {
+      const old = activeKeyIndex;
+      activeKeyIndex = result.activeKeyIndex;
+      // Mark keys between old and new as exhausted
+      const keys2 = getKeys();
+      config.exhaustedKeys = config.exhaustedKeys || [];
+      for (let i = old; i < activeKeyIndex; i++) {
+        if (!config.exhaustedKeys.includes(keys2[i])) config.exhaustedKeys.push(keys2[i]);
+      }
+      renderKeyList(); updateKeyIndicator();
+      toast(`🔄 Key ${old+1} quota hit → rotated to Key ${activeKeyIndex+1}`);
+    }
+    history.push({ role: 'assistant', content: result.text });
+    renderMessage({ role: 'ai', content: result.text, keyIndex: activeKeyIndex });
+    setStatus(`Done · Key ${activeKeyIndex + 1} · ${model}`);
+  } else {
+    renderMessage({ role: 'error', content: '❌ ' + result.error });
+    setStatus('Error', false);
+    history.pop();
+    // If all keys exhausted error
+    if ((result.error||'').toLowerCase().includes('all keys')) {
+      config.exhaustedKeys = [...getKeys()]; // mark all exhausted
+      renderKeyList(); updateKeyIndicator();
+      toast('🚫 All API keys exhausted — add more in Settings', 5000);
+    }
+  }
+  setLoading(false);
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderMessage({ role, content, images, keyIndex }) {
+  const ca  = $('chat-area');
+  const div = document.createElement('div');
+  div.className = 'msg ' + (role === 'user' ? 'user' : role === 'error' ? 'ai error' : 'ai');
+
+  const meta = document.createElement('div');
+  meta.className = 'msg-meta';
+  if (role === 'ai') {
+    meta.innerHTML = `<span class="key-pill">Key ${(keyIndex??0)+1}</span> Gemini · ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`;
+  } else if (role === 'user') {
+    meta.textContent = 'You · ' + new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  }
+  div.appendChild(meta);
+
+  if (images?.length) {
+    images.forEach(img => {
+      const im = document.createElement('img');
+      im.className = 'msg-img'; im.src = 'data:image/png;base64,' + img.b64; im.alt = 'screenshot';
+      div.appendChild(im);
+    });
+  }
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  if (role === 'ai') bubble.innerHTML = fmtAI(content);
+  else bubble.textContent = content;
+  div.appendChild(bubble);
+
+  ca.appendChild(div);
+  ca.scrollTop = ca.scrollHeight;
+}
+
+function fmtAI(t) {
+  const e = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return e(t)
+    .replace(/```(\w*)\n([\s\S]*?)```/g,'<pre><code>$2</code></pre>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\n/g,'<br>');
+}
+
+function renderThinking(id) {
+  const ca = $('chat-area');
+  const d  = document.createElement('div');
+  d.className = 'msg ai thinking'; d.id = id;
+  d.innerHTML = `<div class="msg-meta">Gemini is thinking…</div><div class="msg-bubble"><div class="thinking-dots"><span></span><span></span><span></span></div></div>`;
+  ca.appendChild(d); ca.scrollTop = ca.scrollHeight;
+}
+function removeThinking(id) { document.getElementById(id)?.remove(); }
+
+// ── Input ─────────────────────────────────────────────────────────────────────
+$('msg-input').addEventListener('input', function() { this.style.height=''; this.style.height=Math.min(this.scrollHeight,110)+'px'; });
+$('msg-input').addEventListener('keydown', e => { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();} });
+$('btn-send').addEventListener('click', sendMessage);
+
+// ── Screenshot ────────────────────────────────────────────────────────────────
+$('btn-screenshot-btn').addEventListener('click', async () => {
+  toast('📸 Capturing…');
+  await api.screenshot();
+  // Image arrives via 'screenshot-captured' IPC event — no duplicate getPending() call here
+});
+
+api.on('screenshot-captured', data => {
+  pendingImages.push(data);
+  updateAttachBar();
+  toast('📎 Screenshot attached — send a message!');
+});
+
+function updateAttachBar() {
+  const bar = $('attach-bar');
+  if (pendingImages.length > 0) {
+    bar.classList.add('visible');
+    $('attach-preview').src = 'data:image/png;base64,' + pendingImages[pendingImages.length-1].b64;
+    $('attach-name').textContent = pendingImages.length + ' screenshot(s) attached';
+  } else {
+    bar.classList.remove('visible');
+  }
+}
+$('btn-remove-attach').addEventListener('click', () => { pendingImages=[]; updateAttachBar(); toast('🗑 Cleared'); });
+
+// ── Window controls ───────────────────────────────────────────────────────────
+$('btn-min').addEventListener('click',  () => api.minimize());
+$('btn-hide').addEventListener('click', () => api.hide());
+$('btn-close').addEventListener('click', () => { if(confirm('Quit Ultralay?')) api.close(); });
+$('btn-pin').addEventListener('click',   () => {
+  config.alwaysOnTop = !config.alwaysOnTop;
+  $('btn-pin').classList.toggle('active', config.alwaysOnTop);
+  api.saveConfig({ alwaysOnTop: config.alwaysOnTop });
+  toast(config.alwaysOnTop ? '📌 Pinned on top' : '📌 Unpinned');
+});
+
+// ── Clear chat ────────────────────────────────────────────────────────────────
+$('btn-clear').addEventListener('click', () => {
+  if (!confirm('Clear chat?')) return;
+  history = [];
+  $('chat-area').innerHTML = `<div id="empty-state"><div class="empty-icon">✦</div><div class="empty-title">Chat cleared</div></div>`;
+  toast('🗑 Chat cleared');
+});
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+function openSettings()  { $('settings-panel').classList.add('open'); }
+function closeSettings() { $('settings-panel').classList.remove('open'); }
+
+$('btn-settings-open').addEventListener('click', openSettings);
+$('sp-close').addEventListener('click',           closeSettings);
+
+api.on('toggle-settings', () => $('settings-panel').classList.contains('open') ? closeSettings() : openSettings());
+
+$('pref-opacity').addEventListener('input', e => {
+  $('opacity-val').textContent = e.target.value + '%';
+  document.getElementById('app').style.opacity = e.target.value / 100;
+});
+
+$('btn-save-settings').addEventListener('click', async () => {
+  config.opacity         = parseInt($('pref-opacity').value);
+  config.alwaysOnTop     = $('pref-pin').checked;
+  config.screenshareHide = $('pref-screenshare-hide').checked;
+  await api.saveConfig(config);
+  closeSettings();
+  toast('✅ Settings saved!');
+  updateKeyIndicator();
+});
+
+$('btn-sp-ss').addEventListener('click',   () => api.openScreenshots());
+$('btn-sp-logs').addEventListener('click', () => api.openLogs());
+$('btn-open-ss').addEventListener('click', () => api.openScreenshots());
+
+// ── Status ────────────────────────────────────────────────────────────────────
+function setStatus(t, active) {
+  $('status-text').textContent = t;
+  $('sdot').style.background = active===false ? 'var(--red)' : active ? 'var(--yellow)' : 'var(--green)';
+}
+function setLoading(v) {
+  isLoading = v;
+  $('btn-send').disabled = v;
+  $('btn-send').classList.toggle('loading', v);
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function toast(msg, dur=2500) {
+  const el = $('toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), dur);
+}
+
+// ── Hover-to-interact (stealth click-through) ─────────────────────────────────
+let isLocked = false, _inside = false, _leaveTimer = null;
+
+function updateStealthBadge() {
+  const b = $('stealth-badge'), t = $('badge-text');
+  if (isLocked)        { b.className='locked';      t.textContent='LOCKED'; }
+  else if (_inside)    { b.className='interactive'; t.textContent='INTERACTIVE'; }
+  else                 { b.className='passthrough'; t.textContent='PASSTHROUGH'; }
+}
+
+document.addEventListener('mousemove', e => {
+  const r = $('app').getBoundingClientRect();
+  const over = e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom;
+  if (over && !_inside) { _inside=true; clearTimeout(_leaveTimer); if(!isLocked){api.setInteractive(true);updateStealthBadge();} }
+});
+document.addEventListener('mouseleave', () => {
+  if (_inside) {
+    _inside = false;
+    clearTimeout(_leaveTimer);
+    _leaveTimer = setTimeout(() => { if(!_inside&&!isLocked){api.setInteractive(false);updateStealthBadge();} }, 120);
+  }
+});
+api.on('lock-changed', locked => {
+  isLocked = locked;
+  updateStealthBadge();
+  toast(locked ? '🔒 Locked interactive' : '🔓 Passthrough mode');
+});
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.altKey && e.key==='l') {
+    isLocked = !isLocked;
+    api.lockInteractive(isLocked);
+    updateStealthBadge();
+  }
+});
+updateStealthBadge();
+</script>
+</body>
+</html>

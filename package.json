@@ -1,0 +1,49 @@
+{
+  "name": "ultralay-clone",
+  "version": "2.0.0",
+  "description": "Gemini AI stealth overlay — multi-key rotation, SEB-bypass screenshot, hidden from screen share",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder --win",
+    "build:dir": "electron-builder --win --dir"
+  },
+  "keywords": ["overlay","electron","gemini","ai","stealth","seb","exam"],
+  "author": "Himanshutomar03",
+  "license": "MIT",
+  "dependencies": {
+    "koffi": "^3.3.3",
+    "screenshot-desktop": "^1.15.0",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.ultralay.overlay",
+    "productName": "Ultralay",
+    "copyright": "Copyright © 2026 Himanshutomar03",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**",
+      "utils/**",
+      "scripts/**",
+      "assets/**",
+      "node_modules/**"
+    ],
+    "win": {
+      "target": [{ "target": "portable", "arch": ["x64"] }],
+      "icon": "assets/icon.png"
+    },
+    "portable": {
+      "artifactName": "Ultralay-v${version}-portable.exe"
+    },
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    }
+  }
+}
